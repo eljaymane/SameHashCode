@@ -1,5 +1,8 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+
 namespace sameHashCodeStrings
 {
 
@@ -39,5 +42,32 @@ namespace sameHashCodeStrings
             throw new NotImplementedException();
         }
     }
+
+    public class RandomStringGenerator 
+    {
+        internal static readonly char[] _chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890".ToCharArray();
+
+        public static async Task<string> GetRandomString(int length = 2) 
+        {
+            char[] result = new char[length];
+            var partitioner = Partitioner.Create(0,length);
+            Parallel.ForEach(partitioner, (range, loopstate) =>
+            {
+                for (int i = range.Item1; i < range.Item2; i++)
+                {
+                    result[i] = _chars[RandomNumberGenerator.GetInt32(_chars.Length - 1)];
+                }
+            });
+            return new String(result);
+           
+        }
+
+     
+    }
+
+    public class SameHashStringGenerator
+    {
+    }
+
 }
 

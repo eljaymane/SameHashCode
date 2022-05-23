@@ -1,13 +1,14 @@
 namespace SameHashCodeTest
 {
     [TestClass]
-    public class UnitTest1
+    public class UnitTest
     {
         [TestMethod]
-        public void get_random_string_with_given_length_should_return_string_with_same_length()
+        public async Task get_random_string_with_given_length_should_return_string_with_same_length()
         {
-            var length = 3;
-            Assert.IsTrue((Program.GetRandomString(length)).Result.Length == length);
+            var length = 100000;
+            var result = await RandomStringGenerator.GetRandomString(length);
+            Assert.AreEqual(length, result.Length);
         }
 
         [TestMethod]

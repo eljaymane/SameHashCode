@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\optim-SameHashCode\optim-SameHashCode.csproj" />
+    <ProjectReference Include="..\optim-SameHashCode\SameHashCode.csproj" />
   </ItemGroup>
 
 </Project>
