@@ -5,7 +5,7 @@ VisualStudioVersion = 17.2.32516.85
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SameHashCode", "optim-SameHashCode\SameHashCode.csproj", "{1F600AE4-9A4D-4FC3-9A6B-A88EDD270451}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SameHashCodeTest", "SameHashCodeTest\SameHashCodeTest.csproj", "{4A1F9562-B8B8-4A7D-9336-F9DD6DDCCD0B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SameHashCodeTest", "SameHashCodeTest\SameHashCodeTest.csproj", "{4A1F9562-B8B8-4A7D-9336-F9DD6DDCCD0B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
