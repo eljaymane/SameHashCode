@@ -6,107 +6,124 @@ using System.Security.Cryptography;
 
 namespace sameHashCodeStrings
 {
-    public delegate void _bruteForceCallBack(ref ConcurrentDictionary<string, Int32> _hashStore,int length);
-   
-
+    public delegate void _bruteForceCallBack();
     public static class Program
     {
-        public static AutoResetEvent _are = new AutoResetEvent(true);
+        const int CHECK_EVERY_MILLISECONDS = 5000;
+        const int INITIAL_STRING_LENGTH = 4;
         public static ConcurrentDictionary<string, Int32> _hashStore = new ConcurrentDictionary<string, Int32>(Environment.ProcessorCount *2,4000000);
-        public static ThreadBruteForce _threadBruteforce;
-        public static ThreadTryGetSameHashString _threadTryGetSameHashString;
-        public static char response;
-        public static string a;
-        static Thread _thread,_threadCheck;
+        public static Dictionary<string,Int32> _found = new Dictionary<string, Int32>();
+        public static ThreadBruteForce threadBruteForce;
+        public static string initialString;
+        static Thread _threadBruteforce,_threadCheck,_threadCleanup;
 
 
          static async Task Main(string[] args)
         {
-            //_hashStore = new ConcurrentDictionary<string, Int32>();
-            //BB : HASH : -331290870
-             a = await RandomStringGenerator.GetRandomString(4);
-            _threadBruteforce = new ThreadBruteForce(new _bruteForceCallBack(BruteForceCallback),ref _hashStore, 1);
-            _threadTryGetSameHashString = new ThreadTryGetSameHashString(ref _hashStore,a);
-            _thread = new Thread(new ThreadStart(_threadBruteforce.doBruteForceAsync));
-            _thread.Name = "Bruteforce";
-            _thread.Priority = ThreadPriority.Lowest;
-            
-            _threadCheck = new Thread(new ThreadStart(tryGetStrings));
-            
-            Console.WriteLine("First string : Hash : {0}  String : {1}", a.GetHashCode(), a);
-            Console.WriteLine("Current thread {0} , state : {1}", _thread.Name, _thread.ThreadState);
-            //_thread.Start();
-            //Console.WriteLine("Current thread {0} , state : {1}", _thread.Name, _thread.ThreadState);
-            _thread.Start();
-
-            do
+            #region HilariousJokes.Get()
+            /*Tentative très naive que je laisse pour amuser le lecteur
+            public static async Task<string> getSameHashString(string s)
             {
-               
-                Console.WriteLine("Started bruteforcing string hashes...");
-                Console.WriteLine("Current thread {0} , state : {1}", _thread.Name, _thread.ThreadState);
-                Console.WriteLine("Wanna check if same has string is found? ");
-                response = Console.ReadLine()[0];
-                if (response == 'y')
+
+                var index = 0;
+                var result = new String("");
+                var hashCode = s.GetHashCode();
+                bool stop = true;
+                do
                 {
-                    //_thread.Suspend();
-                    _threadCheck = new Thread(new ThreadStart(tryGetStrings));
-                    _are.Set();
-                    _threadCheck.Start();
-                   
-                   
+                    result = await RandomStringGenerator.GetRandomString(s.Length);
+                    stop = result.GetHashCode() == hashCode && !result.Equals(s);
 
-                        //var lines = _hashStore.Select(e => e.Key + " : " + e.Value.ToString());
-                        //Console.WriteLine(string.Join(Environment.NewLine, lines));
-                    }
-            } while (response != 'q');
+                } while (!stop);
 
+                return result;
 
-            
-            
-
-
+            }
+            */
+            #endregion
+            initialString = await RandomStringGenerator.GetRandomString(INITIAL_STRING_LENGTH);
+            threadBruteForce = new ThreadBruteForce(new _bruteForceCallBack(BruteForceCallback),_hashStore, 1);
+            _threadBruteforce = new Thread(new ThreadStart(threadBruteForce.doBruteForce));
+            _threadBruteforce.Name = "Bruteforce";
+            _threadBruteforce.Priority = ThreadPriority.Lowest;
+            _threadCheck = new Thread(new ThreadStart(tryGetStrings));
+            Console.WriteLine("First string : Hash : {0}  String : {1}", initialString.GetHashCode(), initialString);
+            _threadBruteforce.Start();
+            _threadCheck.Start();
+            Console.WriteLine("Thread {0} is in state : {1}", _threadBruteforce.Name, _threadBruteforce.ThreadState);
+            Console.WriteLine("Started bruteforcing string hashes...");
         }
         public static void tryGetStrings()
         {
-
-            Console.WriteLine("Waiting...");
-            _are.WaitOne();
-            var hashCode = a.GetHashCode();
-
-
-            var values = _hashStore.Where(e => e.Value == hashCode);
-            if (!(values.Count() > 0)) Console.WriteLine("Still nothing found...");
+            Console.WriteLine("Checking...");
+            var hashCode = initialString.GetHashCode();
+            var values = _hashStore.Where(e => e.Value == hashCode && e.Key != initialString).ToDictionary(e => e.Key, e=> e.Value);
+            if (!(values.Count() > 0)) Console.WriteLine("Nothing to add");
             else
             {
-                Console.WriteLine("For initial string : {0} , hash : {1}", a, a.GetHashCode());
-                Console.WriteLine("Values found  : ");
                 foreach (var item in values)
                 {
-                    Console.WriteLine("string : {0} , hash : {1}", item.Key, item.Value);
+                    _found.Add(item.Key, item.Value);
+                    _hashStore.TryRemove(item.Key, out int value);
+                }
+                if (values.Count > 1) Console.WriteLine("Added {0} values", values.Count);
+                if (values.Count == 1) Console.WriteLine("Added {0} value", values.Count);
+            }
+            if (_found.Count >= 3)
+            {
+                _threadBruteforce.Abort();
+                Console.WriteLine("Thread {0} is in state {1}",_threadBruteforce.Name,_threadBruteforce.ThreadState);
+                Console.WriteLine("For initial string {0} with hash {1} , here's what i've found :", initialString, initialString.GetHashCode());
+                foreach (var e in _found)
+                {
+                    Console.WriteLine(" String : {0} , Hash : {1}", e.Key, e.Value);
+                }
+                Console.WriteLine("Press any key to quit...");
+                Console.ReadKey();
+                return;
+            }
+            Thread.Sleep(CHECK_EVERY_MILLISECONDS);
+            _threadCheck = new Thread(new ThreadStart(tryGetStrings));
+            _threadCheck.Start();  
+        }
+
+        public static async Task doCleanup(int length)
+        {
+                Console.WriteLine("Cleaning up...");
+                _hashStore = new ConcurrentDictionary<string, Int32>(_hashStore.Where(e => e.Key.Length > length - 2).ToDictionary(e => e.Key, e => e.Value));
+        }
+
+        public static async Task BruteForceHash(ConcurrentDictionary<string, Int32> _hashStore, int length = 1)
+        {
+            if (length == 1)
+            {
+                foreach (var _char in RandomStringGenerator._chars.ToArray())
+                {
+                    _hashStore.TryAdd(_char.ToString(), _char.ToString().GetHashCode());
                 }
             }
-
-            _are.Reset();
-
+            else
+            {
+                foreach (var entry in _hashStore.Keys.Where(s => s.Length == length - 1))
+                {
+                    for (int i = 0; i < RandomStringGenerator._chars.Length; i++)
+                    {
+                        var input = String.Concat(entry, RandomStringGenerator._chars[i]);
+                        _hashStore.TryAdd(input, input.GetHashCode());
+                    }
+                }
+            }
         }
 
-        public static void BruteForceCallback(ref ConcurrentDictionary<string,Int32> _hashStore,int lenght)
+        public static async void BruteForceCallback()
         {
-            _are.Set();
-            _threadBruteforce.length++;
-            _thread = new Thread(new ThreadStart(_threadBruteforce.doBruteForceAsync));
-            _thread.Name = "Bruteforce";
-            _are.WaitOne();
-            _thread.Start();
-;
+            threadBruteForce.length++;
+            //if (threadBruteForce.length >2) await doCleanup(threadBruteForce.length);
+            _threadBruteforce = new Thread(new ThreadStart(threadBruteForce.doBruteForce));
+            _threadBruteforce.Name = "Bruteforce";
+            _threadBruteforce.Start();
         }
 
-        async static Task<bool> TestKata(string string1, string string2, string string3)
-        {
-            bool hashCodeEqual = string1.GetHashCode() == string2.GetHashCode() && string2.GetHashCode() == string3.GetHashCode();
-            bool stringNotEqual = !String.Equals(string1, string2) && !String.Equals(string1, string3) && !String.Equals(string2, string3);
-            return hashCodeEqual && stringNotEqual;
-        }
     }
 
     public class RandomStringGenerator 
@@ -134,114 +151,28 @@ namespace sameHashCodeStrings
 
 
     }
-
-    public static class HashStringGenerator
-    {
-        #region HilariousJokes.Get()
-        /*Tentative très naive que je laisse pour amuser le lecteur
-        public static async Task<string> getSameHashString(string s)
-        {
-            
-            var index = 0;
-            var result = new String("");
-            var hashCode = s.GetHashCode();
-            bool stop = true;
-            do
-            {
-                result = await RandomStringGenerator.GetRandomString(s.Length);
-                stop = result.GetHashCode() == hashCode && !result.Equals(s);
-
-            } while (!stop);
-
-            return result;
-
-        }
-        */
-        #endregion
-        public static async Task BruteForceHash(_bruteForceCallBack _callback,ConcurrentDictionary<string,Int32> _hashStore, int length = 1)
-        {
-            if(length == 1)
-            {
-                foreach (var _char in RandomStringGenerator._chars.ToArray())
-                {
-                    _hashStore.TryAdd(_char.ToString(), _char.ToString().GetHashCode());
-                }
-            } else
-            {
-                
-                    foreach (var entry in _hashStore.Keys.Where(s => s.Length == length -1))
-                    {
-                        for (int i = 0; i < RandomStringGenerator._chars.Length; i++)
-                        {
-                        var input = String.Concat(entry, RandomStringGenerator._chars[i]);
-                        _hashStore.TryAdd(input, input.GetHashCode());
-                         }
-                    }
-                
-            }
-
-            
-        }
-
-        
-    }
-
     public class ThreadBruteForce
     {
         private _bruteForceCallBack _callBack;
         public int length { get; set; }
         private ConcurrentDictionary<string, Int32> _hashStore;
 
-        public ThreadBruteForce(_bruteForceCallBack callBack, ref ConcurrentDictionary<string, Int32> _hashStore, int length = 1)
+        public ThreadBruteForce(_bruteForceCallBack callBack,ConcurrentDictionary<string, Int32> _hashStore, int length = 1)
         {
             _callBack = callBack;
             this.length = length;
             this._hashStore = _hashStore;
         }
 
-        public async void doBruteForceAsync()
+        public async void doBruteForce()
         {
-            await HashStringGenerator.BruteForceHash(_callBack, _hashStore, length);
-            if(_callBack != null)
+            await Program.BruteForceHash(_hashStore, length);
+            if (_callBack != null)
             {
-                _callBack(ref _hashStore,length+1);
+                _callBack();
             }
         }
 
-    }
-
-    public class ThreadTryGetSameHashString
-    {
-        private readonly ConcurrentDictionary<string, Int32> _hashStore;
-        private readonly string s;
-
-        public ThreadTryGetSameHashString(ref ConcurrentDictionary<string,Int32> _hashStore,string s)
-        {
-            this._hashStore = _hashStore;
-            this.s = s;
-        }
-
-        public void tryGetStrings()
-        {
-            var hashCode = s.GetHashCode();
-           
-            
-                var values = this._hashStore.Where(e => e.Value == hashCode);
-                if (!(values.Count() > 0)) Console.WriteLine("Still nothing found...");
-                else
-                {
-                    Console.WriteLine("For initial string : {0} , hash : {1}", s, s.GetHashCode());
-                    Console.WriteLine("Values found  : ");
-                    foreach (var item in values)
-                    {
-                        Console.WriteLine("string : {0} , hash : {1}", item.Key, item.Value);
-                    }
-                }
-            
-           
-            
-        }
-        
     }
 
 }
